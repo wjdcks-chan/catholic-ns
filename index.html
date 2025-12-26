@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>학생회 물품 대여 장부</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #ffffff;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+    }
+
+    /* 상단 안내 문구 */
+    .notice-box {
+      background: #f7f7f7;
+      border: 1px solid #ddd;
+      padding: 10px 14px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .notice-box div {
+      margin-bottom: 4px;
+    }
+
+    .top-area { margin-bottom: 15px; }
+    .form-area { margin-bottom: 20px; }
+
+    select, input, button {
+      padding: 6px;
+      margin-right: 6px;
+      font-size: 14px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th, td {
+      border: 1px solid #ccc;
+      padding: 6px;
+      text-align: center;
+      font-size: 14px;
+    }
+
+    th {
+      background: #f2f2f2;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    button:disabled {
+      cursor: default;
+      opacity: 0.5;
+    }
+
+    .reset-btn {
+      background: #eee;
+    }
+
+    /* 안내 팝업 */
+    .overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .guide-box {
+      background: #fff;
+      padding: 20px;
+      width: 420px;
+      border-radius: 6px;
+      text-align: center;
+    }
+
+    .guide-box p {
+      margin-bottom: 20px;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 입장 안내 팝업 (매 접속 시 표시) -->
+  <div id="guideOverlay" class="overlay">
+    <div class="guide-box">
+      <p>
+        📌 <strong>학생회 물품 대여 장부 안내</strong><br><br>
+        1. 물품 선택 후 이름·학번 입력 → <b>[대여하기]</b><br>
+        2. 반납은 <b>학생회 담당자 확인 후</b> 처리됩니다.<br>
+        3. 물품 대여는 운영 시간인 <b>10시~18시</b> 내에만 가능합니다.<br><br>
+        ✅ <b>일회용품은 장부를 작성하지 않아도 됩니다.</b>
+      </p>
+      <button onclick="closeGuide()">확인</button>
+    </div>
+  </div>
+
+  <h1>학생회 물품 대여 장부</h1>
+
+  <!-- 상단 고정 안내 문구 -->
+  <div class="notice-box">
+    <div>✔ 물품 대여는 운영 시간인 <b>10시~18시</b> 내에만 가능합니다.</div>
+    <div>✔ 물품 반납 또한 <b>대여 당일 운영 시간 내</b>에 부탁드립니다.</div>
+    <div>✔ 반납은 <b>학생회 담당자의 확인</b>이 필요합니다.</div>
+  </div>
+
+  <div class="top-area">
+    <button class="reset-btn" onclick="resetAll()">초기화 (새 장부)</button>
+  </div>
+
+  <div class="form-area">
+    <select id="itemSelect">
+      <option value="실험복">실험복</option>
+      <option value="계산기">계산기</option>
+      <option value="컴퓨터사인펜">컴퓨터사인펜</option>
+      <option value="화이트">화이트</option>
+    </select>
+
+    <input type="text" id="nameInput" placeholder="이름" />
+    <input type="text" id="studentIdInput" placeholder="학번" />
+    <button onclick="rentItem()">대여하기</button>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>번호</th>
+        <th>물품</th>
+        <th>이름</th>
+        <th>학번</th>
+        <th>대여 시각</th>
+        <th>반납 시각</th>
+        <th>반납</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody"></tbody>
+  </table>
+
+  <script>
+    const ADMIN_PASSWORD = "0510";
+    const STORAGE_KEY = "rentalRecords";
+
+    let records = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+
+    const PASSWORD_ERROR_MESSAGE =
+      "비밀번호가 올바르지 않습니다.\n" +
+      "다시 시도해 주세요.\n" +
+      "문제가 계속되면 학생회 담당자에게 문의해 주세요.";
+
+    function saveRecords() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    }
+
+    function formatTime(date) {
+      return date.toLocaleString();
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById("tableBody");
+      tbody.innerHTML = "";
+
+      records.forEach((record, index) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${record.id}</td>
+          <td>${record.item}</td>
+          <td>${record.name}</td>
+          <td>${record.studentId}</td>
+          <td>${record.rentTime}</td>
+          <td>${record.returnTime || ""}</td>
+          <td>
+            <button ${record.returnTime ? "disabled" : ""} onclick="returnItem(${index})">
+              반납
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function rentItem() {
+      const item = itemSelect.value;
+      const name = nameInput.value.trim();
+      const studentId = studentIdInput.value.trim();
+
+      if (!name || !studentId) {
+        alert("이름과 학번을 입력하세요.");
+        return;
+      }
+
+      records.push({
+        id: records.length + 1,
+        item,
+        name,
+        studentId,
+        rentTime: formatTime(new Date()),
+        returnTime: null
+      });
+
+      saveRecords();
+      renderTable();
+
+      nameInput.value = "";
+      studentIdInput.value = "";
+    }
+
+    function returnItem(index) {
+      const password = prompt("관리자 비밀번호를 입력하세요");
+      if (password !== ADMIN_PASSWORD) {
+        alert(PASSWORD_ERROR_MESSAGE);
+        return;
+      }
+
+      records[index].returnTime = formatTime(new Date());
+      saveRecords();
+      renderTable();
+    }
+
+    function resetAll() {
+      const password = prompt("관리자 비밀번호를 입력하세요");
+      if (password !== ADMIN_PASSWORD) {
+        alert(PASSWORD_ERROR_MESSAGE);
+        return;
+      }
+
+      if (!confirm("모든 대여 기록이 삭제됩니다.\n새 장부를 시작할까요?")) return;
+
+      records = [];
+      saveRecords();
+      renderTable();
+    }
+
+    function closeGuide() {
+      document.getElementById("guideOverlay").style.display = "none";
+    }
+
+    renderTable();
+  </script>
+
+</body>
+</html>

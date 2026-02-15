@@ -2,8 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>학생회 물품 대여 장부 (실시간)</title>
+  <title>학생회 물품 대여 장부</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; background: #ffffff; }
     h1 { margin-bottom: 10px; }
@@ -16,11 +15,11 @@
       font-size: 14px;
       line-height: 1.7;
     }
-    .top-area { margin-bottom: 15px; display:flex; gap:10px; align-items:center; }
+
+    .top-area { margin-bottom: 15px; }
     .form-area { margin-bottom: 20px; }
 
     select, input, button { padding: 6px; margin-right: 6px; font-size: 14px; }
-    #itemNoSelect { min-width: 90px; }
 
     table { width: 100%; border-collapse: collapse; }
     th, td { border: 1px solid #ccc; padding: 6px; text-align: center; font-size: 14px; }
@@ -30,13 +29,6 @@
     button:disabled { opacity: 0.5; }
 
     .reset-btn { background: #eee; }
-    .status {
-      font-size: 13px;
-      padding: 6px 10px;
-      border: 1px solid #ddd;
-      background: #fafafa;
-      border-radius: 6px;
-    }
 
     .overlay {
       position: fixed; top: 0; left: 0;
@@ -45,19 +37,18 @@
       display: flex; align-items: center; justify-content: center;
       z-index: 1000;
     }
+
     .guide-box {
       background: #fff;
       padding: 20px;
       width: 420px;
-      border-radius: 10px;
+      border-radius: 6px;
       text-align: center;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
     }
   </style>
 </head>
 <body>
 
-<!-- ✅ JS가 죽어도 닫히게: onclick 사용 -->
 <div id="guideOverlay" class="overlay">
   <div class="guide-box">
     <p>
@@ -67,14 +58,11 @@
       3. 물품 대여는 운영 시간인 <b>10시~18시</b> 내에만 가능합니다.<br><br>
       ✅ <b>일회용품은 장부를 작성하지 않아도 됩니다.</b>
     </p>
-    <button id="closeGuideBtn"
-      onclick="document.getElementById('guideOverlay').style.display='none'">
-      확인
-    </button>
+    <button id="closeGuideBtn">확인</button>
   </div>
 </div>
 
-<h1>학생회 물품 대여 장부 (실시간)</h1>
+<h1>학생회 물품 대여 장부 (로컬)</h1>
 
 <div class="notice-box">
   <div>✔ 물품 대여는 운영 시간인 <b>10시~18시</b> 내에만 가능합니다.</div>
@@ -84,24 +72,11 @@
 
 <div class="top-area">
   <button class="reset-btn" id="resetBtn">초기화 (새 장부)</button>
-  <div class="status" id="statusBox">상태: 초기화 중…</div>
 </div>
 
 <div class="form-area">
-  <!-- ✅ JS가 죽어도 보이게 기본 옵션 제공 -->
-  <select id="itemSelect">
-    <option value="실험복">실험복</option>
-    <option value="계산기">계산기</option>
-    <option value="컴퓨터사인펜">컴퓨터사인펜</option>
-    <option value="화이트">화이트</option>
-  </select>
-
-  <select id="itemNoSelect">
-    <option value="1">1번</option><option value="2">2번</option><option value="3">3번</option>
-    <option value="4">4번</option><option value="5">5번</option><option value="6">6번</option>
-    <option value="7">7번</option><option value="8">8번</option><option value="9">9번</option>
-    <option value="10">10번</option>
-  </select>
+  <select id="itemSelect"></select>
+  <select id="itemNoSelect"></select>
 
   <input id="nameInput" placeholder="이름">
   <input id="studentIdInput" placeholder="학번">
@@ -118,30 +93,10 @@
   <tbody id="tableBody"></tbody>
 </table>
 
-<script type="module">
-  // =========================
-  // Firebase (CDN 모듈)
-  // =========================
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js";
-  import {
-    getFirestore, doc, collection, query, orderBy,
-    onSnapshot, getDoc, setDoc, runTransaction, serverTimestamp
-  } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-
-  // ✅ 네가 준 firebaseConfig 그대로
-  const firebaseConfig = {
-    apiKey: "AIzaSyAeN3Gb0_ygEBfDvBAAzqcdbbK2-Z-RuTA",
-    authDomain: "cukns26.firebaseapp.com",
-    projectId: "cukns26",
-    storageBucket: "cukns26.firebasestorage.app",
-    messagingSenderId: "600904309613",
-    appId: "1:600904309613:web:fa64f06f2982b259c65864",
-    measurementId: "G-7C0H1NZ9FC"
-  };
-
-  // =========================
-  // DOM
-  // =========================
+<script>
+  // ====== DOM ======
+  const guideOverlay = document.getElementById("guideOverlay");
+  const closeGuideBtn = document.getElementById("closeGuideBtn");
   const resetBtn = document.getElementById("resetBtn");
   const itemSelect = document.getElementById("itemSelect");
   const itemNoSelect = document.getElementById("itemNoSelect");
@@ -149,42 +104,57 @@
   const studentIdInput = document.getElementById("studentIdInput");
   const rentBtn = document.getElementById("rentBtn");
   const tableBody = document.getElementById("tableBody");
-  const statusBox = document.getElementById("statusBox");
 
-  // =========================
-  // 설정 (관리 로직은 너 코드 그대로 유지)
-  // =========================
+  // ====== 설정 ======
   const ADMIN_PASSWORD = "정찬";
   const PASSWORD_ERROR_MESSAGE =
     "비밀번호가 올바르지 않습니다.\n다시 시도해 주세요.\n문제가 계속되면 학생회 담당자에게 문의해 주세요.";
+
+  // ✅ localStorage 키 (너 원본과 동일)
+  const STORAGE_KEY = "rentalRecords_local_v1";
 
   function nowKoreanString() {
     return new Date().toLocaleString("ko-KR");
   }
 
-  // ✅ 물품 목록 및 번호 1~10
+  // ✅ 물품 목록 및 번호 1~10 자동 생성 (너 원본과 동일)
   const ITEMS = ["실험복", "계산기", "컴퓨터사인펜", "화이트"];
   const ITEM_NO_MAP = Object.fromEntries(
     ITEMS.map(item => [item, Array.from({ length: 10 }, (_, i) => String(i + 1))])
   );
 
+  // ✅ 현재 대여중인 키 셋
   const activeRentedKeys = new Set();
   function makeKey(item, itemNo) { return `${item}::${itemNo}`; }
 
-  // =========================
-  // Firestore 구조
-  // meta/current { ledgerId }
-  // ledgers/{ledgerId}/rentals/{recordId}
-  // ledgers/{ledgerId}/locks/{itemKey}
-  // =========================
-  let db = null;
-  let currentLedgerId = null;
-  let records = [];
-  let unsubMeta = null;
-  let unsubRentals = null;
+  // ====== 데이터 로드/세이브 ======
+  function loadRecords() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      const data = raw ? JSON.parse(raw) : [];
+      return Array.isArray(data) ? data : [];
+    } catch {
+      return [];
+    }
+  }
 
-  function setStatus(msg) {
-    statusBox.textContent = "상태: " + msg;
+  function saveRecords(records) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+  }
+
+  // records 구조:
+  // { id, item, itemNo, name, studentId, rentTime, returnTime, createdAtMs }
+  let records = loadRecords();
+
+  // ====== UI 초기화 ======
+  function initItemSelect() {
+    itemSelect.innerHTML = "";
+    ITEMS.forEach(it => {
+      const opt = document.createElement("option");
+      opt.value = it;
+      opt.textContent = it;
+      itemSelect.appendChild(opt);
+    });
   }
 
   function rebuildActiveRentedKeys() {
@@ -201,16 +171,15 @@
     const list = ITEM_NO_MAP[item] || [];
 
     itemNoSelect.innerHTML = "";
+    itemNoSelect.disabled = (list.length === 0);
+
     if (list.length === 0) {
       const opt = document.createElement("option");
       opt.value = "";
       opt.textContent = "번호 없음";
       itemNoSelect.appendChild(opt);
-      itemNoSelect.disabled = true;
       return;
     }
-
-    itemNoSelect.disabled = false;
 
     list.forEach(no => {
       const opt = document.createElement("option");
@@ -227,6 +196,7 @@
   }
 
   function renderTable() {
+    // createdAtMs 기준 정렬(오래된 순)
     records.sort((a, b) => (a.createdAtMs || 0) - (b.createdAtMs || 0));
 
     tableBody.innerHTML = "";
@@ -263,161 +233,90 @@
     renderTable();
   }
 
-  async function ensureLedger() {
-    const metaRef = doc(db, "meta", "current");
-    const metaSnap = await getDoc(metaRef);
-
-    if (!metaSnap.exists() || !metaSnap.data()?.ledgerId) {
-      const ledgerId = `ledger_${Date.now()}`;
-      await setDoc(metaRef, { ledgerId, updatedAt: serverTimestamp() });
-    }
-  }
-
-  function subscribeLedger(ledgerId) {
-    if (unsubRentals) unsubRentals();
-
-    const rentalsCol = collection(db, "ledgers", ledgerId, "rentals");
-    const q = query(rentalsCol, orderBy("createdAtMs", "asc"));
-
-    unsubRentals = onSnapshot(q, (snap) => {
-      records = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      refreshUI();
-    }, (err) => {
-      console.error("rentals onSnapshot error:", err);
-      setStatus("Firestore 구독 오류(콘솔 확인)");
-    });
-  }
-
-  async function boot() {
-    setStatus("Firebase 초기화…");
-    const app = initializeApp(firebaseConfig);
-    db = getFirestore(app);
-
-    await ensureLedger();
-
-    const metaRef = doc(db, "meta", "current");
-    if (unsubMeta) unsubMeta();
-
-    unsubMeta = onSnapshot(metaRef, (snap) => {
-      const ledgerId = snap.data()?.ledgerId;
-      if (!ledgerId) {
-        setStatus("ledgerId 없음(meta/current 확인)");
-        return;
-      }
-      if (currentLedgerId !== ledgerId) {
-        currentLedgerId = ledgerId;
-        setStatus("연결됨 ✅ (ledger: " + ledgerId + ")");
-        subscribeLedger(currentLedgerId);
-      }
-    }, (err) => {
-      console.error("meta onSnapshot error:", err);
-      setStatus("meta 구독 오류(콘솔 확인)");
-    });
-  }
-
-  async function rentItem() {
+  // ====== 기능 ======
+  function rentItem() {
     const name = nameInput.value.trim();
     const studentId = studentIdInput.value.trim();
     const item = itemSelect.value;
     const itemNo = itemNoSelect.value;
 
-    if (!name || !studentId) { alert("이름과 학번을 입력하세요."); return; }
-    if (!itemNo) { alert("물품 번호를 선택하세요."); return; }
+    if (!name || !studentId) {
+      alert("이름과 학번을 입력하세요.");
+      return;
+    }
 
-    if (!currentLedgerId) {
-      alert("장부 연결 중입니다. (상단 상태 표시/콘솔 확인)");
+    if (!itemNo) {
+      alert("물품 번호를 선택하세요. (대여중인 번호는 선택 불가)");
       return;
     }
 
     const key = makeKey(item, itemNo);
-    const lockRef = doc(db, "ledgers", currentLedgerId, "locks", key);
-    const rentalsCol = collection(db, "ledgers", currentLedgerId, "rentals");
-    const newId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random();
-
-    try {
-      await runTransaction(db, async (tx) => {
-        const lockSnap = await tx.get(lockRef);
-        if (lockSnap.exists()) {
-          throw new Error(`${item} ${itemNo}번은 현재 대여중입니다. 반납 처리 후 다시 시도해 주세요.`);
-        }
-
-        tx.set(lockRef, { item, itemNo, createdAtMs: Date.now(), createdAt: serverTimestamp() });
-        tx.set(doc(rentalsCol, newId), {
-          item,
-          itemNo,
-          name,
-          studentId,
-          rentTime: nowKoreanString(),
-          returnTime: null,
-          createdAtMs: Date.now()
-        });
-      });
-
-      nameInput.value = "";
-      studentIdInput.value = "";
-
-    } catch (e) {
-      console.error(e);
-      alert(e?.message || "대여 처리 중 오류가 발생했습니다.");
+    if (activeRentedKeys.has(key)) {
+      alert(`${item} ${itemNo}번은 현재 대여중입니다. 반납 처리 후 다시 시도해 주세요.`);
+      return;
     }
+
+    const newRecord = {
+      id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()),
+      item,
+      itemNo,
+      name,
+      studentId,
+      rentTime: nowKoreanString(),
+      returnTime: null,
+      createdAtMs: Date.now()
+    };
+
+    records.push(newRecord);
+    saveRecords(records);
+
+    nameInput.value = "";
+    studentIdInput.value = "";
+
+    refreshUI();
   }
 
-  async function returnItem(id) {
+  function returnItem(id) {
     if (prompt("관리자 비밀번호") !== ADMIN_PASSWORD) {
       alert(PASSWORD_ERROR_MESSAGE);
       return;
     }
-    if (!currentLedgerId) return;
 
     const target = records.find(r => r.id === id);
-    if (!target || target.returnTime) return;
+    if (!target) return;
+    if (target.returnTime) return;
 
-    const key = makeKey(target.item, String(target.itemNo));
-    const lockRef = doc(db, "ledgers", currentLedgerId, "locks", key);
-    const recordRef = doc(db, "ledgers", currentLedgerId, "rentals", id);
-
-    try {
-      await runTransaction(db, async (tx) => {
-        tx.update(recordRef, { returnTime: nowKoreanString() });
-        tx.delete(lockRef);
-      });
-    } catch (e) {
-      console.error(e);
-      alert(e?.message || "반납 처리 중 오류가 발생했습니다.");
-    }
+    target.returnTime = nowKoreanString();
+    saveRecords(records);
+    refreshUI();
   }
 
-  async function resetAll() {
+  // ✅ 여기만 “진짜 초기화”로 변경: localStorage 완전 삭제
+  function resetAll() {
     if (prompt("관리자 비밀번호") !== ADMIN_PASSWORD) {
       alert(PASSWORD_ERROR_MESSAGE);
       return;
     }
-    if (!confirm("새 장부로 초기화합니다. (기존 기록은 남아있고, 화면 기준 장부만 바뀝니다)")) return;
+    if (!confirm("모든 기록을 삭제합니다.")) return;
 
-    try {
-      const metaRef = doc(db, "meta", "current");
-      const newLedgerId = `ledger_${Date.now()}`;
-      await setDoc(metaRef, { ledgerId: newLedgerId, updatedAt: serverTimestamp() });
-    } catch (e) {
-      console.error(e);
-      alert(e?.message || "초기화 중 오류가 발생했습니다.");
-    }
+    records = [];
+    localStorage.removeItem(STORAGE_KEY); // ← 완전 초기화
+    refreshUI();
   }
 
-  // 이벤트
+  function closeGuide() {
+    guideOverlay.style.display = "none";
+  }
+
+  // ====== 이벤트 ======
+  closeGuideBtn.addEventListener("click", closeGuide);
+  resetBtn.addEventListener("click", resetAll);
   itemSelect.addEventListener("change", updateItemNoOptions);
   rentBtn.addEventListener("click", rentItem);
-  resetBtn.addEventListener("click", resetAll);
 
-  // 첫 UI
+  // ====== 시작 ======
+  initItemSelect();
   refreshUI();
-
-  // 부팅
-  boot().catch((e) => {
-    console.error("boot error:", e);
-    setStatus("Firebase 연결 실패(콘솔 확인)");
-    // UI는 기본 옵션으로 계속 사용 가능(하지만 실시간 저장은 불가)
-  });
 </script>
 
 </body>

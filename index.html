@@ -104,13 +104,27 @@
   } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
   // ====== Firebase config (여기만 교체) ======
-  const firebaseConfig = {
-    apiKey: "여기에_복사한_apiKey",
-    authDomain: "여기에_authDomain",
-    projectId: "여기에_projectId",
-    appId: "여기에_appId",
-  };
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
 
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyAeN3Gb0_ygEBfDvBAAzqcdbbK2-Z-RuTA",
+  authDomain: "cukns26.firebaseapp.com",
+  projectId: "cukns26",
+  storageBucket: "cukns26.firebasestorage.app",
+  messagingSenderId: "600904309613",
+  appId: "1:600904309613:web:fa64f06f2982b259c65864",
+  measurementId: "G-7C0H1NZ9FC"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
@@ -406,3 +420,4 @@
 
 </body>
 </html>
+

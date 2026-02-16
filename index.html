@@ -62,7 +62,7 @@
   </div>
 </div>
 
-<h1>학생회 물품 대여 장부 </h1>
+<h1>학생회 물품 대여 장부</h1>
 
 <div class="notice-box">
   <div>✔ 물품 대여는 운영 시간인 <b>10시~18시</b> 내에만 가능합니다.</div>
@@ -77,7 +77,6 @@
 <div class="form-area">
   <select id="itemSelect"></select>
   <select id="itemNoSelect"></select>
-
   <input id="nameInput" placeholder="이름">
   <input id="studentIdInput" placeholder="학번">
   <button id="rentBtn">대여하기</button>
@@ -94,231 +93,186 @@
 </table>
 
 <script>
-  // ====== DOM ======
-  const guideOverlay = document.getElementById("guideOverlay");
-  const closeGuideBtn = document.getElementById("closeGuideBtn");
-  const resetBtn = document.getElementById("resetBtn");
-  const itemSelect = document.getElementById("itemSelect");
-  const itemNoSelect = document.getElementById("itemNoSelect");
-  const nameInput = document.getElementById("nameInput");
-  const studentIdInput = document.getElementById("studentIdInput");
-  const rentBtn = document.getElementById("rentBtn");
-  const tableBody = document.getElementById("tableBody");
+const ADMIN_PASSWORD = "정찬";
+const STORAGE_KEY = "rentalRecords_local_v2";
 
-  // ====== 설정 ======
-  const ADMIN_PASSWORD = "정찬";
-  const PASSWORD_ERROR_MESSAGE =
-    "비밀번호가 올바르지 않습니다.\n다시 시도해 주세요.\n문제가 계속되면 학생회 담당자에게 문의해 주세요.";
+function nowKoreanString() {
+  return new Date().toLocaleString("ko-KR");
+}
 
-  // ✅ localStorage 키 (너 원본과 동일)
-  const STORAGE_KEY = "rentalRecords_local_v1";
+// ===== 물품 설정 =====
+const ITEM_CONFIG = {
+  "실험복": 15,
+  "계산기": 8,
+  "화이트": 4,
+  "자": 3,
+  "풀": 2,
+  "컴퓨터사인펜": 0 // 무한 대여
+};
 
-  function nowKoreanString() {
-    return new Date().toLocaleString("ko-KR");
-  }
+const activeRentedKeys = new Set();
+function makeKey(item, no) { return `${item}::${no}`; }
 
-  // ✅ 물품 목록 및 번호 1~10 자동 생성 (너 원본과 동일)
-  const ITEMS = ["실험복", "계산기", "컴퓨터사인펜", "화이트"];
-  const ITEM_NO_MAP = Object.fromEntries(
-    ITEMS.map(item => [item, Array.from({ length: 10 }, (_, i) => String(i + 1))])
-  );
+function loadRecords() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  return raw ? JSON.parse(raw) : [];
+}
+function saveRecords(r) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(r));
+}
 
-  // ✅ 현재 대여중인 키 셋
-  const activeRentedKeys = new Set();
-  function makeKey(item, itemNo) { return `${item}::${itemNo}`; }
+let records = loadRecords();
 
-  // ====== 데이터 로드/세이브 ======
-  function loadRecords() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      const data = raw ? JSON.parse(raw) : [];
-      return Array.isArray(data) ? data : [];
-    } catch {
-      return [];
+// ===== UI =====
+const itemSelect = document.getElementById("itemSelect");
+const itemNoSelect = document.getElementById("itemNoSelect");
+const nameInput = document.getElementById("nameInput");
+const studentIdInput = document.getElementById("studentIdInput");
+const tableBody = document.getElementById("tableBody");
+
+function initItemSelect() {
+  itemSelect.innerHTML = "";
+  Object.keys(ITEM_CONFIG).forEach(item => {
+    const opt = document.createElement("option");
+    opt.value = item;
+    opt.textContent = item;
+    itemSelect.appendChild(opt);
+  });
+}
+
+function rebuildActive() {
+  activeRentedKeys.clear();
+  records.forEach(r => {
+    if (!r.returnTime && r.itemNo) {
+      activeRentedKeys.add(makeKey(r.item, r.itemNo));
     }
+  });
+}
+
+function updateItemNoOptions() {
+  const item = itemSelect.value;
+  const count = ITEM_CONFIG[item];
+
+  itemNoSelect.innerHTML = "";
+
+  if (count === 0) {
+    const opt = document.createElement("option");
+    opt.value = "∞";
+    opt.textContent = "(대여 가능)";
+    itemNoSelect.appendChild(opt);
+    itemNoSelect.disabled = false;
+    return;
   }
 
-  function saveRecords(records) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+  for (let i = 1; i <= count; i++) {
+    const opt = document.createElement("option");
+    const key = makeKey(item, String(i));
+    const isRented = activeRentedKeys.has(key);
+
+    opt.value = i;
+    opt.disabled = isRented;
+    opt.textContent = isRented ? `${i}번 (대여중)` : `${i}번`;
+    itemNoSelect.appendChild(opt);
   }
 
-  // records 구조:
-  // { id, item, itemNo, name, studentId, rentTime, returnTime, createdAtMs }
-  let records = loadRecords();
+  const firstEnabled = Array.from(itemNoSelect.options).find(o => !o.disabled);
+  itemNoSelect.value = firstEnabled ? firstEnabled.value : "";
+}
 
-  // ====== UI 초기화 ======
-  function initItemSelect() {
-    itemSelect.innerHTML = "";
-    ITEMS.forEach(it => {
-      const opt = document.createElement("option");
-      opt.value = it;
-      opt.textContent = it;
-      itemSelect.appendChild(opt);
-    });
+function renderTable() {
+  tableBody.innerHTML = "";
+  records.sort((a,b)=>a.createdAtMs-b.createdAtMs);
+
+  records.forEach((r, idx) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${idx+1}</td>
+      <td>${r.item}</td>
+      <td>${r.itemNo === "∞" ? "-" : r.itemNo}</td>
+      <td>${r.name}</td>
+      <td>${r.studentId}</td>
+      <td>${r.rentTime}</td>
+      <td>${r.returnTime || ""}</td>
+      <td></td>
+    `;
+
+    const btn = document.createElement("button");
+    btn.textContent = "반납";
+    btn.disabled = !!r.returnTime;
+    btn.onclick = () => returnItem(r.id);
+    tr.lastElementChild.appendChild(btn);
+
+    tableBody.appendChild(tr);
+  });
+}
+
+function refresh() {
+  rebuildActive();
+  updateItemNoOptions();
+  renderTable();
+}
+
+// ===== 기능 =====
+function rentItem() {
+  const item = itemSelect.value;
+  const itemNo = itemNoSelect.value;
+  const name = nameInput.value.trim();
+  const studentId = studentIdInput.value.trim();
+
+  if (!name || !studentId) return alert("이름과 학번을 입력하세요.");
+
+  if (ITEM_CONFIG[item] !== 0 && activeRentedKeys.has(makeKey(item,itemNo))) {
+    return alert("이미 대여중입니다.");
   }
 
-  function rebuildActiveRentedKeys() {
-    activeRentedKeys.clear();
-    for (const r of records) {
-      if (!r.returnTime && r.item && r.itemNo) {
-        activeRentedKeys.add(makeKey(r.item, String(r.itemNo)));
-      }
-    }
-  }
+  records.push({
+    id: crypto.randomUUID(),
+    item,
+    itemNo,
+    name,
+    studentId,
+    rentTime: nowKoreanString(),
+    returnTime: null,
+    createdAtMs: Date.now()
+  });
 
-  function updateItemNoOptions() {
-    const item = itemSelect.value;
-    const list = ITEM_NO_MAP[item] || [];
+  saveRecords(records);
+  nameInput.value="";
+  studentIdInput.value="";
+  refresh();
+}
 
-    itemNoSelect.innerHTML = "";
-    itemNoSelect.disabled = (list.length === 0);
+function returnItem(id) {
+  if (prompt("관리자 비밀번호") !== ADMIN_PASSWORD) return;
 
-    if (list.length === 0) {
-      const opt = document.createElement("option");
-      opt.value = "";
-      opt.textContent = "번호 없음";
-      itemNoSelect.appendChild(opt);
-      return;
-    }
+  const r = records.find(x=>x.id===id);
+  if (!r || r.returnTime) return;
 
-    list.forEach(no => {
-      const opt = document.createElement("option");
-      opt.value = no;
+  r.returnTime = nowKoreanString();
+  saveRecords(records);
+  refresh();
+}
 
-      const isRented = activeRentedKeys.has(makeKey(item, no));
-      opt.disabled = isRented;
-      opt.textContent = isRented ? `${no}번 (대여중)` : `${no}번`;
-      itemNoSelect.appendChild(opt);
-    });
+function resetAll() {
+  if (prompt("관리자 비밀번호") !== ADMIN_PASSWORD) return;
+  if (!confirm("모든 기록을 삭제합니다.")) return;
 
-    const firstEnabled = Array.from(itemNoSelect.options).find(o => !o.disabled);
-    itemNoSelect.value = firstEnabled ? firstEnabled.value : "";
-  }
+  records = [];
+  localStorage.removeItem(STORAGE_KEY);
+  refresh();
+}
 
-  function renderTable() {
-    // createdAtMs 기준 정렬(오래된 순)
-    records.sort((a, b) => (a.createdAtMs || 0) - (b.createdAtMs || 0));
+// ===== 이벤트 =====
+document.getElementById("rentBtn").onclick = rentItem;
+document.getElementById("resetBtn").onclick = resetAll;
+itemSelect.onchange = updateItemNoOptions;
+document.getElementById("closeGuideBtn").onclick = () =>
+  document.getElementById("guideOverlay").style.display="none";
 
-    tableBody.innerHTML = "";
-    let i = 1;
-
-    for (const r of records) {
-      const tr = document.createElement("tr");
-
-      tr.innerHTML = `
-        <td>${i++}</td>
-        <td>${r.item || ""}</td>
-        <td>${r.itemNo || ""}</td>
-        <td>${r.name || ""}</td>
-        <td>${r.studentId || ""}</td>
-        <td>${r.rentTime || ""}</td>
-        <td>${r.returnTime || ""}</td>
-        <td></td>
-      `;
-
-      const btnTd = tr.querySelector("td:last-child");
-      const btn = document.createElement("button");
-      btn.textContent = "반납";
-      btn.disabled = Boolean(r.returnTime);
-      btn.addEventListener("click", () => returnItem(r.id));
-      btnTd.appendChild(btn);
-
-      tableBody.appendChild(tr);
-    }
-  }
-
-  function refreshUI() {
-    rebuildActiveRentedKeys();
-    updateItemNoOptions();
-    renderTable();
-  }
-
-  // ====== 기능 ======
-  function rentItem() {
-    const name = nameInput.value.trim();
-    const studentId = studentIdInput.value.trim();
-    const item = itemSelect.value;
-    const itemNo = itemNoSelect.value;
-
-    if (!name || !studentId) {
-      alert("이름과 학번을 입력하세요.");
-      return;
-    }
-
-    if (!itemNo) {
-      alert("물품 번호를 선택하세요. (대여중인 번호는 선택 불가)");
-      return;
-    }
-
-    const key = makeKey(item, itemNo);
-    if (activeRentedKeys.has(key)) {
-      alert(`${item} ${itemNo}번은 현재 대여중입니다. 반납 처리 후 다시 시도해 주세요.`);
-      return;
-    }
-
-    const newRecord = {
-      id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()),
-      item,
-      itemNo,
-      name,
-      studentId,
-      rentTime: nowKoreanString(),
-      returnTime: null,
-      createdAtMs: Date.now()
-    };
-
-    records.push(newRecord);
-    saveRecords(records);
-
-    nameInput.value = "";
-    studentIdInput.value = "";
-
-    refreshUI();
-  }
-
-  function returnItem(id) {
-    if (prompt("관리자 비밀번호") !== ADMIN_PASSWORD) {
-      alert(PASSWORD_ERROR_MESSAGE);
-      return;
-    }
-
-    const target = records.find(r => r.id === id);
-    if (!target) return;
-    if (target.returnTime) return;
-
-    target.returnTime = nowKoreanString();
-    saveRecords(records);
-    refreshUI();
-  }
-
-  // ✅ 여기만 “진짜 초기화”로 변경: localStorage 완전 삭제
-  function resetAll() {
-    if (prompt("관리자 비밀번호") !== ADMIN_PASSWORD) {
-      alert(PASSWORD_ERROR_MESSAGE);
-      return;
-    }
-    if (!confirm("모든 기록을 삭제합니다.")) return;
-
-    records = [];
-    localStorage.removeItem(STORAGE_KEY); // ← 완전 초기화
-    refreshUI();
-  }
-
-  function closeGuide() {
-    guideOverlay.style.display = "none";
-  }
-
-  // ====== 이벤트 ======
-  closeGuideBtn.addEventListener("click", closeGuide);
-  resetBtn.addEventListener("click", resetAll);
-  itemSelect.addEventListener("change", updateItemNoOptions);
-  rentBtn.addEventListener("click", rentItem);
-
-  // ====== 시작 ======
-  initItemSelect();
-  refreshUI();
+// ===== 시작 =====
+initItemSelect();
+refresh();
 </script>
 
 </body>
 </html>
-

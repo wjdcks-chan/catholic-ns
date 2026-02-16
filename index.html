@@ -57,10 +57,19 @@ button:disabled { opacity:0.5; }
   border-radius:6px;
   text-align:center;
 }
+
+/* ✅ 추가: 타이틀 옆 날짜 라벨 */
+.date-label {
+  font-size: 14px;
+  color: #888;
+  margin-left: 10px;
+  font-weight: normal;
+}
 </style>
 </head>
 <body>
 
+<!-- 최초 접속 안내 팝업 -->
 <div id="guideOverlay" class="overlay">
   <div class="guide-box">
     <p>
@@ -74,8 +83,13 @@ button:disabled { opacity:0.5; }
   </div>
 </div>
 
-<h1>학생회 물품 대여 장부</h1>
+<!-- ✅ 타이틀 + 오늘 날짜 -->
+<h1>
+  학생회 물품 대여 장부
+  <span id="todayLabel" class="date-label"></span>
+</h1>
 
+<!-- 상단 공지 -->
 <div class="notice-box">
 ✔ 물품 대여는 운영 시간인 <b>10시~18시</b> 내에만 가능합니다.<br>
 ✔ 물품 반납 또한 <b>대여 당일 운영 시간 내</b>에 부탁드립니다.<br>
@@ -264,7 +278,6 @@ function downloadCSV(){
     alert("기록이 없습니다.");
     return;
   }
-
   let csv="번호,물품,물품번호,이름,학번,대여시각,반납시각\n";
   records.forEach((r,i)=>{
     csv+=(i+1)+","+r.item+","+(r.itemNo==="∞"?"-":r.itemNo)+","+r.name+","+r.student+","+r.rentTime+","+(r.returnTime||"")+"\n";
@@ -285,9 +298,9 @@ function resetAll(){
     return;
   }
 
-  const saved=confirm("초기화 전에 CSV 저장했습니까?");
+  const saved=confirm("초기화 전에 기존 장부를 저장했나요?");
   if(!saved){
-    alert("먼저 장부 다운로드(.csv)를 진행하세요.");
+    alert("먼저 기존 장부 다운로드를 진행하세요.");
     return;
   }
 
@@ -298,6 +311,16 @@ function resetAll(){
   render();
 }
 
+/* ✅ 추가: 오늘 날짜 라벨 세팅 */
+function setTodayLabel(){
+  const d=new Date();
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,"0");
+  const day=String(d.getDate()).padStart(2,"0");
+  const el=document.getElementById("todayLabel");
+  if(el) el.textContent=`(${y}.${m}.${day} 기준)`;
+}
+
 document.getElementById("rentBtn").onclick=rent;
 document.getElementById("resetBtn").onclick=resetAll;
 document.getElementById("downloadBtn").onclick=downloadCSV;
@@ -305,6 +328,7 @@ document.getElementById("itemSelect").onchange=updateItemNo;
 document.getElementById("closeGuideBtn").onclick=()=>{document.getElementById("guideOverlay").style.display="none";};
 
 initItems();
+setTodayLabel();
 render();
 </script>
 

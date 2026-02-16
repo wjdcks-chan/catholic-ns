@@ -1,54 +1,67 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <title>학생회 물품 대여 장부</title>
-  <style>
-    body { font-family: Arial, sans-serif; margin: 20px; background: #ffffff; }
-    h1 { margin-bottom: 10px; }
+<meta charset="UTF-8" />
+<title>학생회 물품 대여 장부</title>
 
-    .notice-box {
-      background: #f7f7f7;
-      border: 1px solid #ddd;
-      padding: 10px 14px;
-      margin-bottom: 20px;
-      font-size: 14px;
-      line-height: 1.7;
-    }
+<style>
+body { font-family: Arial, sans-serif; margin: 20px; background:#ffffff; }
+h1 { margin-bottom:10px; }
 
-    .top-area { margin-bottom: 15px; }
-    .form-area { margin-bottom: 20px; }
+.notice-box {
+  background:#f7f7f7;
+  border:1px solid #ddd;
+  padding:10px 14px;
+  margin-bottom:20px;
+  font-size:14px;
+  line-height:1.7;
+}
 
-    select, input, button { padding: 6px; margin-right: 6px; font-size: 14px; }
+.top-area { margin-bottom:15px; }
+.form-area { margin-bottom:20px; }
 
-    table { width: 100%; border-collapse: collapse; }
-    th, td { border: 1px solid #ccc; padding: 6px; text-align: center; font-size: 14px; }
-    th { background: #f2f2f2; }
+select, input, button {
+  padding:6px;
+  margin-right:6px;
+  font-size:14px;
+}
 
-    button { cursor: pointer; }
-    button:disabled { opacity: 0.5; }
+table { width:100%; border-collapse:collapse; }
+th, td {
+  border:1px solid #ccc;
+  padding:6px;
+  text-align:center;
+  font-size:14px;
+}
+th { background:#f2f2f2; }
 
-    .reset-btn { background: #eee; }
+button { cursor:pointer; }
+button:disabled { opacity:0.5; }
+.reset-btn { background:#eee; }
 
-    .overlay {
-      position: fixed; top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: rgba(0,0,0,0.4);
-      display: flex; align-items: center; justify-content: center;
-      z-index: 1000;
-    }
+.overlay {
+  position:fixed;
+  top:0; left:0;
+  width:100%; height:100%;
+  background:rgba(0,0,0,0.4);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:1000;
+}
 
-    .guide-box {
-      background: #fff;
-      padding: 20px;
-      width: 420px;
-      border-radius: 6px;
-      text-align: center;
-    }
-  </style>
+.guide-box {
+  background:#fff;
+  padding:20px;
+  width:420px;
+  border-radius:6px;
+  text-align:center;
+}
+</style>
 </head>
 <body>
 
+<!-- 최초 접속 안내 팝업 -->
 <div id="guideOverlay" class="overlay">
   <div class="guide-box">
     <p>
@@ -64,214 +77,236 @@
 
 <h1>학생회 물품 대여 장부</h1>
 
+<!-- 상단 공지 -->
 <div class="notice-box">
-  <div>✔ 물품 대여는 운영 시간인 <b>10시~18시</b> 내에만 가능합니다.</div>
-  <div>✔ 물품 반납 또한 <b>대여 당일 운영 시간 내</b>에 부탁드립니다.</div>
-  <div>✔ 반납은 <b>학생회 담당자의 확인</b>이 필요합니다.</div>
+✔ 물품 대여는 운영 시간인 <b>10시~18시</b> 내에만 가능합니다.<br>
+✔ 물품 반납 또한 <b>대여 당일 운영 시간 내</b>에 부탁드립니다.<br>
+✔ 반납은 <b>학생회 담당자의 확인</b>이 필요합니다.
 </div>
 
 <div class="top-area">
-  <button class="reset-btn" id="resetBtn">초기화 (새 장부)</button>
+<button class="reset-btn" id="resetBtn">초기화 (새 장부)</button>
+<button id="downloadBtn">CSV 다운로드</button>
 </div>
 
 <div class="form-area">
-  <select id="itemSelect"></select>
-  <select id="itemNoSelect"></select>
-  <input id="nameInput" placeholder="이름">
-  <input id="studentIdInput" placeholder="학번">
-  <button id="rentBtn">대여하기</button>
+<select id="itemSelect"></select>
+<select id="itemNoSelect"></select>
+<input id="nameInput" placeholder="이름">
+<input id="studentInput" placeholder="학번">
+<button id="rentBtn">대여하기</button>
 </div>
 
 <table>
-  <thead>
-    <tr>
-      <th>번호</th><th>물품</th><th>물품번호</th><th>이름</th><th>학번</th>
-      <th>대여 시각</th><th>반납 시각</th><th>반납</th>
-    </tr>
-  </thead>
-  <tbody id="tableBody"></tbody>
+<thead>
+<tr>
+<th>번호</th>
+<th>물품</th>
+<th>물품번호</th>
+<th>이름</th>
+<th>학번</th>
+<th>대여 시각</th>
+<th>반납 시각</th>
+<th>반납</th>
+</tr>
+</thead>
+<tbody id="tableBody"></tbody>
 </table>
 
 <script>
-const ADMIN_PASSWORD = "정찬";
-const STORAGE_KEY = "rentalRecords_local_v2";
+const ADMIN_PASSWORD="정찬";
+const STORAGE_KEY="rental_records_v4";
 
-function nowKoreanString() {
-  return new Date().toLocaleString("ko-KR");
-}
-
-// ===== 물품 설정 =====
-const ITEM_CONFIG = {
-  "실험복": 15,
-  "계산기": 8,
-  "화이트": 4,
-  "자": 3,
-  "풀": 2,
-  "컴퓨터사인펜": 0 // 무한 대여
+const ITEM_CONFIG={
+  "실험복":15,
+  "계산기":8,
+  "컴퓨터사인펜":0,
+  "화이트":4,
+  "자":3,
+  "풀":2
 };
 
-const activeRentedKeys = new Set();
-function makeKey(item, no) { return `${item}::${no}`; }
+let records=JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]");
+const activeSet=new Set();
 
-function loadRecords() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  return raw ? JSON.parse(raw) : [];
-}
-function saveRecords(r) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(r));
-}
+function now(){ return new Date().toLocaleString("ko-KR"); }
+function save(){ localStorage.setItem(STORAGE_KEY,JSON.stringify(records)); }
 
-let records = loadRecords();
-
-// ===== UI =====
-const itemSelect = document.getElementById("itemSelect");
-const itemNoSelect = document.getElementById("itemNoSelect");
-const nameInput = document.getElementById("nameInput");
-const studentIdInput = document.getElementById("studentIdInput");
-const tableBody = document.getElementById("tableBody");
-
-function initItemSelect() {
-  itemSelect.innerHTML = "";
-  Object.keys(ITEM_CONFIG).forEach(item => {
-    const opt = document.createElement("option");
-    opt.value = item;
-    opt.textContent = item;
-    itemSelect.appendChild(opt);
-  });
-}
-
-function rebuildActive() {
-  activeRentedKeys.clear();
-  records.forEach(r => {
-    if (!r.returnTime && r.itemNo) {
-      activeRentedKeys.add(makeKey(r.item, r.itemNo));
+function rebuildActive(){
+  activeSet.clear();
+  records.forEach(r=>{
+    if(!r.returnTime && r.itemNo!=="∞"){
+      activeSet.add(r.item+"::"+r.itemNo);
     }
   });
 }
 
-function updateItemNoOptions() {
-  const item = itemSelect.value;
-  const count = ITEM_CONFIG[item];
+function initItems(){
+  const sel=document.getElementById("itemSelect");
+  sel.innerHTML="";
+  Object.keys(ITEM_CONFIG).forEach(k=>{
+    const o=document.createElement("option");
+    o.value=k;
+    o.textContent=k;
+    sel.appendChild(o);
+  });
+}
 
-  itemNoSelect.innerHTML = "";
+function updateItemNo(){
+  const item=document.getElementById("itemSelect").value;
+  const count=ITEM_CONFIG[item];
+  const sel=document.getElementById("itemNoSelect");
+  sel.innerHTML="";
 
-  if (count === 0) {
-    const opt = document.createElement("option");
-    opt.value = "∞";
-    opt.textContent = "(대여 가능)";
-    itemNoSelect.appendChild(opt);
-    itemNoSelect.disabled = false;
+  if(count===0){
+    const o=document.createElement("option");
+    o.value="∞";
+    o.textContent="(대여 가능)";
+    sel.appendChild(o);
     return;
   }
 
-  for (let i = 1; i <= count; i++) {
-    const opt = document.createElement("option");
-    const key = makeKey(item, String(i));
-    const isRented = activeRentedKeys.has(key);
-
-    opt.value = i;
-    opt.disabled = isRented;
-    opt.textContent = isRented ? `${i}번 (대여중)` : `${i}번`;
-    itemNoSelect.appendChild(opt);
+  for(let i=1;i<=count;i++){
+    const o=document.createElement("option");
+    o.value=i;
+    const key=item+"::"+i;
+    if(activeSet.has(key)){
+      o.disabled=true;
+      o.textContent=i+"번 (대여중)";
+    }else{
+      o.textContent=i+"번";
+    }
+    sel.appendChild(o);
   }
 
-  const firstEnabled = Array.from(itemNoSelect.options).find(o => !o.disabled);
-  itemNoSelect.value = firstEnabled ? firstEnabled.value : "";
+  const first=[...sel.options].find(x=>!x.disabled);
+  sel.value=first?first.value:"";
 }
 
-function renderTable() {
-  tableBody.innerHTML = "";
-  records.sort((a,b)=>a.createdAtMs-b.createdAtMs);
+function render(){
+  rebuildActive();
+  updateItemNo();
 
-  records.forEach((r, idx) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${idx+1}</td>
-      <td>${r.item}</td>
-      <td>${r.itemNo === "∞" ? "-" : r.itemNo}</td>
-      <td>${r.name}</td>
-      <td>${r.studentId}</td>
-      <td>${r.rentTime}</td>
-      <td>${r.returnTime || ""}</td>
-      <td></td>
-    `;
+  const body=document.getElementById("tableBody");
+  body.innerHTML="";
+  records.sort((a,b)=>a.created-b.created);
 
-    const btn = document.createElement("button");
-    btn.textContent = "반납";
-    btn.disabled = !!r.returnTime;
-    btn.onclick = () => returnItem(r.id);
-    tr.lastElementChild.appendChild(btn);
+  records.forEach((r,i)=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=
+      "<td>"+(i+1)+"</td>"+
+      "<td>"+r.item+"</td>"+
+      "<td>"+(r.itemNo==="∞"?"-":r.itemNo)+"</td>"+
+      "<td>"+r.name+"</td>"+
+      "<td>"+r.student+"</td>"+
+      "<td>"+r.rentTime+"</td>"+
+      "<td>"+(r.returnTime||"")+"</td>"+
+      "<td></td>";
 
-    tableBody.appendChild(tr);
+    const btn=document.createElement("button");
+    btn.textContent="반납";
+    btn.disabled=!!r.returnTime;
+    btn.onclick=()=>returnItem(r.id);
+    tr.lastChild.appendChild(btn);
+
+    body.appendChild(tr);
   });
 }
 
-function refresh() {
-  rebuildActive();
-  updateItemNoOptions();
-  renderTable();
-}
+function rent(){
+  const item=document.getElementById("itemSelect").value;
+  const no=document.getElementById("itemNoSelect").value;
+  const name=document.getElementById("nameInput").value.trim();
+  const student=document.getElementById("studentInput").value.trim();
 
-// ===== 기능 =====
-function rentItem() {
-  const item = itemSelect.value;
-  const itemNo = itemNoSelect.value;
-  const name = nameInput.value.trim();
-  const studentId = studentIdInput.value.trim();
+  if(!name||!student){
+    alert("이름과 학번을 입력하세요.");
+    return;
+  }
 
-  if (!name || !studentId) return alert("이름과 학번을 입력하세요.");
-
-  if (ITEM_CONFIG[item] !== 0 && activeRentedKeys.has(makeKey(item,itemNo))) {
-    return alert("이미 대여중입니다.");
+  if(no!=="∞"){
+    const key=item+"::"+no;
+    if(activeSet.has(key)){
+      alert("이미 대여중입니다.");
+      return;
+    }
   }
 
   records.push({
-    id: crypto.randomUUID(),
-    item,
-    itemNo,
-    name,
-    studentId,
-    rentTime: nowKoreanString(),
-    returnTime: null,
-    createdAtMs: Date.now()
+    id:crypto.randomUUID(),
+    item:item,
+    itemNo:no,
+    name:name,
+    student:student,
+    rentTime:now(),
+    returnTime:null,
+    created:Date.now()
   });
 
-  saveRecords(records);
-  nameInput.value="";
-  studentIdInput.value="";
-  refresh();
+  save();
+  document.getElementById("nameInput").value="";
+  document.getElementById("studentInput").value="";
+  render();
 }
 
-function returnItem(id) {
-  if (prompt("관리자 비밀번호") !== ADMIN_PASSWORD) return;
-
-  const r = records.find(x=>x.id===id);
-  if (!r || r.returnTime) return;
-
-  r.returnTime = nowKoreanString();
-  saveRecords(records);
-  refresh();
+function returnItem(id){
+  if(prompt("관리자 비밀번호")!==ADMIN_PASSWORD){
+    alert("비밀번호 오류");
+    return;
+  }
+  const r=records.find(x=>x.id===id);
+  if(!r||r.returnTime) return;
+  r.returnTime=now();
+  save();
+  render();
 }
 
-function resetAll() {
-  if (prompt("관리자 비밀번호") !== ADMIN_PASSWORD) return;
-  if (!confirm("모든 기록을 삭제합니다.")) return;
+function downloadCSV(){
+  if(records.length===0){
+    alert("기록이 없습니다.");
+    return;
+  }
+  let csv="번호,물품,물품번호,이름,학번,대여시각,반납시각\n";
+  records.forEach((r,i)=>{
+    csv+=(i+1)+","+r.item+","+(r.itemNo==="∞"?"-":r.itemNo)+","+r.name+","+r.student+","+r.rentTime+","+(r.returnTime||"")+"\n";
+  });
 
-  records = [];
+  const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download="학생회_물품대여장부.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function resetAll(){
+  if(prompt("관리자 비밀번호")!==ADMIN_PASSWORD){
+    alert("비밀번호 오류");
+    return;
+  }
+
+  const saved=confirm("초기화 전에 CSV 저장했습니까?");
+  if(!saved){
+    alert("먼저 CSV 다운로드를 진행하세요.");
+    return;
+  }
+
+  if(!confirm("정말 모든 기록을 삭제합니까?")) return;
+
+  records=[];
   localStorage.removeItem(STORAGE_KEY);
-  refresh();
+  render();
 }
 
-// ===== 이벤트 =====
-document.getElementById("rentBtn").onclick = rentItem;
-document.getElementById("resetBtn").onclick = resetAll;
-itemSelect.onchange = updateItemNoOptions;
-document.getElementById("closeGuideBtn").onclick = () =>
-  document.getElementById("guideOverlay").style.display="none";
+document.getElementById("rentBtn").onclick=rent;
+document.getElementById("resetBtn").onclick=resetAll;
+document.getElementById("downloadBtn").onclick=downloadCSV;
+document.getElementById("itemSelect").onchange=updateItemNo;
+document.getElementById("closeGuideBtn").onclick=()=>{document.getElementById("guideOverlay").style.display="none";};
 
-// ===== 시작 =====
-initItemSelect();
-refresh();
+initItems();
+render();
 </script>
 
 </body>
